@@ -20,3 +20,6 @@
 
 ## 🛠️ التقنيات 
 * JavaScript (ES6) | Chrome Extension API (Manifest V3) | HTML / CSS
+<img width="692" height="137" alt="image" src="https://github.com/user-attachments/assets/4b57a233-106a-4574-a7fe-82d6067f10ac" />
+
+<img width="309" height="373" alt="image" src="https://github.com/user-attachments/assets/c38e01a4-5aa9-4429-8a47-d61ef7d1fb82" />
