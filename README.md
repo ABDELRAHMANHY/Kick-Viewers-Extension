@@ -1,8 +1,6 @@
 # Kick Viewers & Chat Extension 🟢
 
 إضافة متصفح خفيفة وآمنة لمنصة Kick.com، تتيح لك متابعة عدد المشاهدين الحقيقيين وعداد الرسائل الحية مباشرة من واجهة البث دون الحاجة لفتح أدوات معقدة.
-**Download**
-https://github.com/ABDELRAHMANHY/Kick-Viewers-Extension/releases/tag/v1.0.0
 
 ## ✨ المميزات 
 * **عرض المشاهدين الحقيقيين:** يعتمد على الـ API الرسمي لمنصة كيك.
