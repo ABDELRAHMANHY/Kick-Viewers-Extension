@@ -9,15 +9,27 @@
         // التنصت على كل رسالة تعبر من السيرفر إلى المتصفح
         ws.addEventListener('message', function(event) {
             if (typeof event.data === 'string' && event.data.includes('ChatMessageEvent')) {
-                // إطلاق جرس إنذار للإضافة بأن هناك رسالة مرت للتو!
-                document.dispatchEvent(new CustomEvent('KickRealtimeMessage'));
+                try {
+                    const outer = JSON.parse(event.data);
+                    const inner = JSON.parse(outer.data);
+                    // استخراج اسم المرسل وتمريره مع الحدث
+                    const username = inner?.sender?.username || null;
+                    document.dispatchEvent(new CustomEvent('KickRealtimeMessage', {
+                        detail: { username }
+                    }));
+                } catch (e) {
+                    // fallback بدون اسم إذا فشل التحليل
+                    document.dispatchEvent(new CustomEvent('KickRealtimeMessage', {
+                        detail: { username: null }
+                    }));
+                }
             }
         });
         
         return ws;
     };
     
-    // التعديل الجديد: ضبط الـ prototype والوراثة بشكل كامل وصحيح للمتصفح
+    // ضبط الـ prototype والوراثة بشكل كامل وصحيح للمتصفح
     Object.setPrototypeOf(window.WebSocket, OriginalWebSocket);
     window.WebSocket.prototype = OriginalWebSocket.prototype;
 })();

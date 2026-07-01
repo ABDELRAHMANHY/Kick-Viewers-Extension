@@ -33,15 +33,15 @@
   ];
 
   const LABELS = {
-    ar: { viewers: "مشاهد", messages: "رسالة"        },
-    en: { viewers: "Viewers", messages: "Messages"    },
-    es: { viewers: "Espectadores", messages: "Mensajes" },
-    fr: { viewers: "Spectateurs",  messages: "Messages" },
-    de: { viewers: "Zuschauer",    messages: "Nachrichten" },
-    tr: { viewers: "İzleyici",     messages: "Mesaj"   },
-    ru: { viewers: "Зрителей",     messages: "Сообщений" },
-    ko: { viewers: "시청자",        messages: "메시지"   },
-    ja: { viewers: "視聴者",        messages: "メッセージ" },
+    ar: { viewers: "مشاهد", messages: "رسالة", chatters: "كاتب", timer: "وقت المشاهدة" },
+    en: { viewers: "Viewers", messages: "Messages", chatters: "Chatters", timer: "Watch Time" },
+    es: { viewers: "Espectadores", messages: "Mensajes", chatters: "Participantes", timer: "Tiempo" },
+    fr: { viewers: "Spectateurs",  messages: "Messages", chatters: "Membres", timer: "Temps" },
+    de: { viewers: "Zuschauer",    messages: "Nachrichten", chatters: "Chatter", timer: "Uhrzeit" },
+    tr: { viewers: "İzleyici",     messages: "Mesaj", chatters: "Kişi", timer: "Süre" },
+    ru: { viewers: "Зрителей",     messages: "Сообщений", chatters: "Участников", timer: "Время" },
+    ko: { viewers: "시청자",        messages: "메시지", chatters: "참여자", timer: "시간" },
+    ja: { viewers: "視聴者",        messages: "メッセージ", chatters: "参加者", timer: "時間" },
   };
 
   function getLabel(type) {
@@ -55,20 +55,18 @@
   // 3. متغيرات الحالة
   // ==========================================
   let sessionMsgCount    = 0;
+  let uniqueChatters     = new Set();
   let sessionStartTime   = null; 
   let viewersInterval    = null;
   let uiUpdateInterval   = null;
   let fetchController    = null; 
-  let currentChannelName = null; // <-- (الجديد) متغير لحفظ اسم القناة الحالية
+  let currentChannelName = null; 
 
-  // الإعدادات المحلية (تُحدَّث من chrome.storage)
   let cfg = { showViewers: true, showChat: true, showTimer: true };
 
   // ==========================================
   // 4. دوال مساعدة
   // ==========================================
-  
-  // (الجديد) دالة لاستخراج اسم القناة من الرابط وتجاهل الصفحات العامة
   function getChannelNameFromUrl() {
     const pathParts = window.location.pathname.split('/').filter(Boolean);
     if (pathParts.length === 0) return null;
@@ -91,7 +89,7 @@
     svg.setAttribute("height", height);
     svg.setAttribute("viewBox", viewBox);
     svg.setAttribute("fill", "#aeb2b9");
-    svg.style.cssText = "margin-left:6px; flex-shrink:0;";
+    svg.style.cssText = "flex-shrink:0; margin: 0;";
     for (const d of paths) {
       const path = document.createElementNS("http://www.w3.org/2000/svg", "path");
       path.setAttribute("d", d);
@@ -100,36 +98,138 @@
     return svg;
   }
 
-  function getOrCreateBadge(id, insertBefore) {
-    let badge = document.getElementById(id);
+  // ==========================================
+  // 5. تحديث شارة الرسائل والكتاب (بأداء عالي وثبات)
+  // ==========================================
+  function updateChatBadge(msgCount, chattersCount) {
+    if (!cfg.showChat) {
+      document.getElementById(CHAT_BADGE_ID)?.remove();
+      return;
+    }
+    const shareButton = findShareButton();
+    if (!shareButton) return;
+
+    let badge = document.getElementById(CHAT_BADGE_ID);
+    
+    // بناء الهيكل لمرة واحدة فقط
     if (!badge) {
       badge = document.createElement("div");
-      badge.id = id;
+      badge.id = CHAT_BADGE_ID;
       Object.assign(badge.style, {
-        display:    "inline-flex",
+        display: "inline-flex",
         alignItems: "center",
         fontFamily: "Inter, Arial, sans-serif",
-        fontSize:   "19px",
+        fontSize: "19px",
         fontWeight: "bold",
-        margin:     "0 12px",
+        margin: "0 12px",
+        gap: "8px",
+        direction: "rtl" // تثبيت الاتجاه الرئيسي لمنع الرقص
       });
-      insertBefore.insertAdjacentElement("beforebegin", badge);
-    }
-    return badge;
-  }
 
-  function renderBadge(badge, icon, text, labelText) {
-    const num = document.createElement("span");
-    num.textContent = text;
-    num.style.cssText = "color:#53fc18; margin: 0 6px;";
-    const label = document.createElement("span");
-    label.textContent = labelText;
-    label.style.color = "#aeb2b9";
-    badge.replaceChildren(icon, num, label);
+      const icon = createSVG("18", "18", "0 0 24 24", [
+        "M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z"
+      ]);
+
+      // قسم الرسائل
+      const msgBlock = document.createElement("div");
+      msgBlock.style.cssText = "display:flex; align-items:center; gap:4px;";
+      
+      const msgNum = document.createElement("span");
+      msgNum.id = "kick-msg-num";
+      msgNum.style.color = "#53fc18";
+      msgNum.dir = "ltr"; // إجبار الأرقام على اتجاه ثابت
+      
+      const msgLbl = document.createElement("span");
+      msgLbl.id = "kick-msg-lbl";
+      msgLbl.style.cssText = "color:#aeb2b9; font-size:16px;";
+      
+      msgBlock.append(msgNum, msgLbl);
+
+      // الفاصل
+      const dot = document.createElement("span");
+      dot.textContent = "•";
+      dot.style.color = "#aeb2b9";
+
+      // قسم الكتاب (الأشخاص)
+      const chattersBlock = document.createElement("div");
+      chattersBlock.style.cssText = "display:flex; align-items:center; gap:4px;";
+
+      const chattersNum = document.createElement("span");
+      chattersNum.id = "kick-chatters-num";
+      chattersNum.style.color = "#53fc18";
+      chattersNum.dir = "ltr"; 
+      
+      const chattersLbl = document.createElement("span");
+      chattersLbl.id = "kick-chatters-lbl";
+      chattersLbl.style.cssText = "color:#aeb2b9; font-size:16px;";
+
+      chattersBlock.append(chattersNum, chattersLbl);
+
+      badge.append(icon, msgBlock, dot, chattersBlock);
+      shareButton.insertAdjacentElement("beforebegin", badge);
+    }
+
+    // تحديث المحتوى النصي فقط (لا يستهلك موارد الجهاز)
+    document.getElementById("kick-msg-num").textContent = msgCount.toLocaleString();
+    document.getElementById("kick-msg-lbl").textContent = getLabel("messages");
+    
+    document.getElementById("kick-chatters-num").textContent = chattersCount.toLocaleString();
+    document.getElementById("kick-chatters-lbl").textContent = getLabel("chatters");
   }
 
   // ==========================================
-  // 5. المؤقت — حساب الوقت بدون interval إضافي
+  // 6. تحديث شارة المشاهدين (مُحسّن)
+  // ==========================================
+  function updateViewersBadge(count) {
+    if (!cfg.showViewers) {
+      document.getElementById(VIEWERS_BADGE_ID)?.remove();
+      return;
+    }
+    const shareButton = findShareButton();
+    if (!shareButton) return;
+
+    const anchorEl = document.getElementById(CHAT_BADGE_ID) ?? shareButton;
+    let badge = document.getElementById(VIEWERS_BADGE_ID);
+    
+    if (!badge) {
+      badge = document.createElement("div");
+      badge.id = VIEWERS_BADGE_ID;
+      Object.assign(badge.style, {
+        display: "inline-flex",
+        alignItems: "center",
+        fontFamily: "Inter, Arial, sans-serif",
+        fontSize: "19px",
+        fontWeight: "bold",
+        margin: "0 12px",
+        gap: "6px",
+        direction: "rtl"
+      });
+
+      const icon = createSVG("20", "20", "0 0 32 32", [
+        "M4 19V28H7V22H16V28H28V19H4Z",
+        "M10.75 17.5C14.4775 17.5 17.5 14.4775 17.5 10.75C17.5 7.0225 14.4775 4 10.75 4C7.0225 4 4 7.0225 4 10.75C4 14.4775 7.0225 17.5 10.75 17.5ZM10.75 7C12.82 7 14.5 8.68 14.5 10.75C14.5 12.82 12.82 14.5 10.75 14.5C8.68 14.5 7 12.82 7 10.75C7 8.68 8.68 7 10.75 7Z",
+        "M23.5 17.5C25.9853 17.5 28 15.4853 28 13C28 10.5147 25.9853 8.5 23.5 8.5C21.0147 8.5 19 10.5147 19 13C19 15.4853 21.0147 17.5 23.5 17.5Z"
+      ]);
+
+      const numEl = document.createElement("span");
+      numEl.id = "kick-viewers-val";
+      numEl.style.color = "#53fc18";
+      numEl.dir = "ltr";
+
+      const label = document.createElement("span");
+      label.id = "kick-viewers-lbl";
+      label.style.cssText = "color:#aeb2b9; font-size:16px;";
+
+      badge.append(icon, numEl, label);
+      anchorEl.insertAdjacentElement("beforebegin", badge);
+    }
+
+    document.getElementById("kick-viewers-val").textContent = count.toLocaleString();
+    document.getElementById("kick-viewers-lbl").textContent = getLabel("viewers");
+  }
+
+  // ==========================================
+  // 7. المؤقت (مُحسّن)
   // ==========================================
   function formatElapsed(ms) {
     const totalSec = Math.floor(ms / 1000);
@@ -153,88 +253,60 @@
                   ?? document.getElementById(CHAT_BADGE_ID)
                   ?? shareButton;
 
-    const badge = getOrCreateBadge(TIMER_BADGE_ID, anchorEl);
+    let badge = document.getElementById(TIMER_BADGE_ID);
+    if (!badge) {
+      badge = document.createElement("div");
+      badge.id = TIMER_BADGE_ID;
+      Object.assign(badge.style, {
+        display: "inline-flex",
+        alignItems: "center",
+        fontFamily: "Inter, Arial, sans-serif",
+        fontSize: "19px",
+        fontWeight: "bold",
+        margin: "0 12px",
+        gap: "6px",
+        direction: "rtl"
+      });
 
-    let numEl = badge.querySelector('.timer-num');
-    if (!numEl) {
       const icon = createSVG("17", "17", "0 0 24 24", [
         "M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm.5 5v6l4.5 2.7-.75 1.23L11 13V7h1.5z"
       ]);
-      numEl = document.createElement("span");
-      numEl.className = "timer-num";
-      numEl.style.cssText = "color:#53fc18; margin: 0 6px;";
+
+      const numEl = document.createElement("span");
+      numEl.id = "kick-timer-val";
+      numEl.style.color = "#53fc18";
+      numEl.dir = "ltr";
+
       const label = document.createElement("span");
-      label.style.color = "#aeb2b9";
-      label.textContent = "وقت المشاهدة";
-      badge.replaceChildren(icon, numEl, label);
+      label.id = "kick-timer-lbl";
+      label.style.cssText = "color:#aeb2b9; font-size:16px;";
+
+      badge.append(icon, numEl, label);
+      anchorEl.insertAdjacentElement("beforebegin", badge);
     }
 
-    numEl.textContent = formatElapsed(Date.now() - sessionStartTime);
-  }
-
-  // ==========================================
-  // 6. تحديث شارة المشاهدين
-  // ==========================================
-  function updateViewersBadge(count) {
-    if (!cfg.showViewers) {
-      document.getElementById(VIEWERS_BADGE_ID)?.remove();
-      return;
-    }
-    const shareButton = findShareButton();
-    if (!shareButton) return;
-
-    const anchorEl = document.getElementById(CHAT_BADGE_ID) ?? shareButton;
-    const badge    = getOrCreateBadge(VIEWERS_BADGE_ID, anchorEl);
-    renderBadge(
-      badge,
-      createSVG("20", "20", "0 0 32 32", [
-        "M4 19V28H7V22H16V28H28V19H4Z",
-        "M10.75 17.5C14.4775 17.5 17.5 14.4775 17.5 10.75C17.5 7.0225 14.4775 4 10.75 4C7.0225 4 4 7.0225 4 10.75C4 14.4775 7.0225 17.5 10.75 17.5ZM10.75 7C12.82 7 14.5 8.68 14.5 10.75C14.5 12.82 12.82 14.5 10.75 14.5C8.68 14.5 7 12.82 7 10.75C7 8.68 8.68 7 10.75 7Z",
-        "M23.5 17.5C25.9853 17.5 28 15.4853 28 13C28 10.5147 25.9853 8.5 23.5 8.5C21.0147 8.5 19 10.5147 19 13C19 15.4853 21.0147 17.5 23.5 17.5Z",
-      ]),
-      count.toLocaleString(),
-      getLabel("viewers")
-    );
-  }
-
-  // ==========================================
-  // 7. تحديث شارة الرسائل
-  // ==========================================
-  function updateChatBadge(count) {
-    if (!cfg.showChat) {
-      document.getElementById(CHAT_BADGE_ID)?.remove();
-      return;
-    }
-    const shareButton = findShareButton();
-    if (!shareButton) return;
-
-    const badge = getOrCreateBadge(CHAT_BADGE_ID, shareButton);
-    renderBadge(
-      badge,
-      createSVG("18", "18", "0 0 24 24", [
-        "M20 2H4c-1.1 0-2 .9-2 2v18l4-4h14c1.1 0 2-.9 2-2V4c0-1.1-.9-2-2-2z",
-      ]),
-      count.toLocaleString(),
-      getLabel("messages")
-    );
+    document.getElementById("kick-timer-val").textContent = formatElapsed(Date.now() - sessionStartTime);
+    document.getElementById("kick-timer-lbl").textContent = getLabel("timer");
   }
 
   // ==========================================
   // 8. استقبال رسائل الشات من الجاسوس
   // ==========================================
-  document.addEventListener('KickRealtimeMessage', () => {
+  document.addEventListener('KickRealtimeMessage', (event) => {
     if (sessionMsgCount < 999999) {
       sessionMsgCount++;
     }
+    const username = event.detail?.username;
+    if (username) uniqueChatters.add(username);
   });
 
   // ==========================================
-  // 9. جلب المشاهدين من الـ API مع AbortController
+  // 9. جلب المشاهدين من الـ API
   // ==========================================
   async function fetchLiveViewerCountAPI() {
     if (!cfg.showViewers) return;
 
-    const channelName = getChannelNameFromUrl(); // تم استخدام الدالة الجديدة هنا
+    const channelName = getChannelNameFromUrl(); 
     if (!channelName) return;
 
     fetchController?.abort();
@@ -266,18 +338,17 @@
     if (viewersInterval)  clearInterval(viewersInterval);
 
     if (!sessionStartTime) sessionStartTime = Date.now();
-    currentChannelName = getChannelNameFromUrl(); // تسجيل اسم القناة عند البداية
+    currentChannelName = getChannelNameFromUrl(); 
 
     uiUpdateInterval = setInterval(() => {
-      // (الجديد) التحقق من تغيير القناة
       const newChannel = getChannelNameFromUrl();
       if (newChannel && newChannel !== currentChannelName) {
-        // المستخدم انتقل لبث آخر! نصفّر الرسائل فقط ونحدث اسم القناة
         currentChannelName = newChannel;
         sessionMsgCount = 0;
+        uniqueChatters.clear();
       }
 
-      updateChatBadge(sessionMsgCount);
+      updateChatBadge(sessionMsgCount, uniqueChatters.size);
       updateTimerBadge(); 
     }, 1000);
 
@@ -294,13 +365,14 @@
     viewersInterval    = null;
     fetchController    = null;
     sessionStartTime   = null;
-    currentChannelName = null; // تصفير متغير القناة عند التوقف
+    currentChannelName = null;
 
     document.getElementById(VIEWERS_BADGE_ID)?.remove();
     document.getElementById(CHAT_BADGE_ID)?.remove();
     document.getElementById(TIMER_BADGE_ID)?.remove();
 
     sessionMsgCount = 0;
+    uniqueChatters.clear();
   }
 
   // ==========================================
@@ -328,11 +400,10 @@
   }
 
   // ==========================================
-  // 12. قراءة الإعدادات والاستماع لتغيّراتها
+  // 12. قراءة الإعدادات
   // ==========================================
   const run = () => {
     if (typeof chrome !== "undefined" && chrome?.storage?.local) {
-
       chrome.storage.local.get(['showViewers', 'showChat', 'showTimer'], (res) => {
         const showViewers = res.showViewers !== false;
         const showChat    = res.showChat    !== false;
@@ -347,21 +418,17 @@
         const showTimer   = 'showTimer'   in changes ? changes.showTimer.newValue   : cfg.showTimer;
         applySettings(showViewers, showChat, showTimer);
       });
-
     } else {
-      console.warn("⚠️ [Kick Ext] chrome.storage غير متاح، التشغيل بالوضع الافتراضي.");
       startIntervals();
     }
   };
 
-  // ==========================================
-  // 13. استقبال أوامر منفصلة لتصفيير العدادات
-  // ==========================================
   if (typeof chrome !== "undefined" && chrome.runtime && chrome.runtime.onMessage) {
     chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       if (request.action === "resetChat") {
         sessionMsgCount = 0;
-        updateChatBadge(sessionMsgCount);
+        uniqueChatters.clear();
+        updateChatBadge(sessionMsgCount, uniqueChatters.size);
         sendResponse({ status: "success" });
       } else if (request.action === "resetTimer") {
         sessionStartTime = Date.now();
