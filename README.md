@@ -1,36 +1,30 @@
-# Kick Viewers & Chat Extension 🟢
+# Kick Real Viewers & Chat Extension 🟢
 
-A lightweight, secure, and efficient browser extension for **Kick.com**. It allows you to track real-time viewers and live chat message counts directly from the stream interface without cluttering your workspace.
+A powerful and lightweight browser extension for the [Kick](https://kick.com) streaming platform that reveals the **real-time viewer count, even if the streamer has hidden it**, along with advanced chat metrics.
 
-**[Download the latest version here](https://github.com/ABDELRAHMANHY/Kick-Viewers-Extension/releases/download/v1.0.0/Kick-Viewers-Extension.zip)**
+🦊 **[Download for Firefox (Official Store)](https://addons.mozilla.org/en-US/firefox/addon/kick-viewers-chat/)**
+📦 **[Direct Download v1.1 (.zip)](https://github.com/ABDELRAHMANHY/Kick-Viewers-Extension/releases/download/v1.1/Kick-Viewers-Extension.zip)**
 
----
+## 🌟 Features (v1.1)
+* **Real Viewers:** Displays the actual number of live viewers directly from Kick's API.
+* **Chat Metrics:** A live counter for total chat messages.
+* **🆕 Unique Chatters:** Tracks the exact number of actual people typing in the chat!
+* **Session Timer:** Tracks how long you've been watching the stream.
+* **Lightweight & Secure:** Built with vanilla JavaScript. No external libraries, no data collection, and highly optimized to ensure smooth browser performance.
 
-## ✨ Features
-* **Real-time Viewer Count:** Fetches data directly from the official Kick API.
-* **Live Chat Counter:** Tracks chat activity in real-time.
-* **Simple Toggle:** Easily enable or disable the extension with a single click from the popup.
-* **Optimized Performance:** Designed to be lightweight and efficient, ensuring zero impact on your browser's performance.
+## 🚀 Installation (Manual from ZIP)
+If you want to install it manually using the provided `.zip` file:
+1. Download the `.zip` file from the link above.
+2. Extract the folder to a safe location on your computer.
+3. Open your browser's Extensions page (e.g., `chrome://extensions/` or `opera://extensions`).
+4. Enable **Developer Mode** (usually a toggle in the top right corner).
+5. Click **Load unpacked** and select the extracted folder.
 
-## 🚀 How to Install
-Since this extension is currently distributed independently, you can install it manually in a few easy steps:
-
-1. **[Download the extension ZIP file](https://github.com/ABDELRAHMANHY/Kick-Viewers-Extension/releases/download/v1.0.0/Kick-Viewers-Extension.zip).**
-2. Extract the ZIP file to a folder on your computer.
-3. Open Google Chrome and navigate to `chrome://extensions/`.
-4. Enable **Developer mode** using the toggle in the top-right corner.
-5. Click on **Load unpacked** in the top-left corner.
-6. Select the folder where you extracted the extension files.
-7. You're all set! Open any live stream on Kick.com to see the extension in action.
-
-## 🛠️ Technologies
-* JavaScript (ES6)
-* Chrome Extension API (Manifest V3)
-* HTML / CSS
-
-## 📝 License
-This project is licensed under the **MIT License**. Feel free to use, modify, and distribute it.
+## 🛡️ Privacy
+This extension is strictly a front-end UI tool. It does **not** collect, store, or transmit any user data or personal information.
 <img width="1383" height="753" alt="image" src="https://github.com/user-attachments/assets/c8c87ab4-b18b-4eee-8fa7-7549bbe0ede1" />
+<img width="1141" height="201" alt="image" src="https://github.com/user-attachments/assets/0631a62c-1e88-4e87-bd84-e2be877bb6c9" />
+
 
 <img width="692" height="137" alt="image" src="https://github.com/user-attachments/assets/4b57a233-106a-4574-a7fe-82d6067f10ac" />
 
