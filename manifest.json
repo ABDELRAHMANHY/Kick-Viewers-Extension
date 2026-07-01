@@ -19,7 +19,7 @@
     "storage"
   ],
   "host_permissions": [
-    "https://kick.com/*"
+    "https://*.kick.com/*"
   ],
   "action": {
     "default_popup": "popup.html"
@@ -28,7 +28,7 @@
     {
       "matches": ["https://*.kick.com/*"],
       "js": ["content.js"],
-      "run_at": "document_idle"
+      "run_at": "document_start"
     }
   ],
   "web_accessible_resources": [

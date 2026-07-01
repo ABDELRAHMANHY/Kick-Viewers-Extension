@@ -5,13 +5,45 @@
   // ==========================================
   // 1. زراعة الجاسوس
   // ==========================================
-  const script = document.createElement('script');
-  script.src = chrome.runtime.getURL('spy.js');
-  script.onload = function() {
-    this.remove();
-    console.log("🟢 [Kick Ext] تم حقن ملف spy.js بنجاح.");
-  };
-  (document.head || document.documentElement).appendChild(script);
+  // يجب حقن كود المراقبة بشكل متزامن (sync) وقبل أي كود آخر في الصفحة،
+  // لأن الاستبدال يعتمد على استبدال window.WebSocket قبل أن تفتح صفحة
+  // Kick اتصال الشات الخاص بها. لذلك الكود مضمّن هنا مباشرة كنص ثابت
+  // (نفس محتوى spy.js حرفياً) بدل تحميله عبر src أو XHR، فينفَّذ فوراً
+  // ومتزامناً عند إلحاقه بالـ DOM، مع "run_at": "document_start" في
+  // manifest.json لضمان أبكر توقيت ممكن.
+  try {
+    const script = document.createElement('script');
+    script.textContent = `(function() {
+    const OriginalWebSocket = window.WebSocket;
+    window.WebSocket = function(url, protocols) {
+        const ws = new OriginalWebSocket(url, protocols);
+        ws.addEventListener('message', function(event) {
+            if (typeof event.data === 'string' && event.data.includes('ChatMessageEvent')) {
+                try {
+                    const outer = JSON.parse(event.data);
+                    const inner = JSON.parse(outer.data);
+                    const username = inner?.sender?.username || null;
+                    document.dispatchEvent(new CustomEvent('KickRealtimeMessage', {
+                        detail: { username }
+                    }));
+                } catch (e) {
+                    document.dispatchEvent(new CustomEvent('KickRealtimeMessage', {
+                        detail: { username: null }
+                    }));
+                }
+            }
+        });
+        return ws;
+    };
+    Object.setPrototypeOf(window.WebSocket, OriginalWebSocket);
+    window.WebSocket.prototype = OriginalWebSocket.prototype;
+})();`;
+    (document.head || document.documentElement).appendChild(script);
+    script.remove();
+    console.log("🟢 [Kick Ext] تم حقن كود المراقبة بنجاح.");
+  } catch (e) {
+    console.warn("🔴 [Kick Ext] فشل حقن كود المراقبة، سيتم تعطيل عدّاد الرسائل:", e);
+  }
 
   // ==========================================
   // 2. الثوابت والإعدادات
@@ -71,7 +103,12 @@
     const pathParts = window.location.pathname.split('/').filter(Boolean);
     if (pathParts.length === 0) return null;
     const name = pathParts[0];
-    const ignoreList = ['categories', 'search', 'following', 'auth', 'dashboard', 'video', 'clip'];
+    const ignoreList = [
+      'categories', 'search', 'following', 'auth', 'dashboard', 'video', 'clip',
+      'browse', 'subscriptions', 'wallet', 'settings', 'notifications',
+      'moderator', 'support', 'about', 'privacy', 'terms', 'jobs', 'store',
+      'signup', 'login', 'embed-chat', 'discover', 'leaderboards'
+    ];
     return ignoreList.includes(name) ? null : name;
   }
 
@@ -224,7 +261,8 @@
       anchorEl.insertAdjacentElement("beforebegin", badge);
     }
 
-    document.getElementById("kick-viewers-val").textContent = count.toLocaleString();
+    document.getElementById("kick-viewers-val").textContent =
+      (count === null || count === undefined) ? "—" : count.toLocaleString();
     document.getElementById("kick-viewers-lbl").textContent = getLabel("viewers");
   }
 
@@ -303,6 +341,13 @@
   // ==========================================
   // 9. جلب المشاهدين من الـ API
   // ==========================================
+  // ملاحظة: /api/v1/channels/{slug} هو مسار داخلي غير موثّق رسمياً من Kick
+  // (وليس جزءاً من الـ API الرسمي المبني على OAuth على api.kick.com)، لذلك
+  // قد يتغير أو يُحجب دون إشعار مسبق. للتعامل مع هذا الاحتمال، لا نترك
+  // الرقم القديم معروضاً بشكل مضلِّل عند تكرر الفشل، بل نعرض "—" بدلاً منه.
+  let viewersFailCount = 0;
+  const VIEWERS_FAIL_THRESHOLD = 2;
+
   async function fetchLiveViewerCountAPI() {
     if (!cfg.showViewers) return;
 
@@ -320,12 +365,22 @@
       if (response.ok) {
         const data = await response.json();
         if (data?.livestream?.viewer_count !== undefined) {
+          viewersFailCount = 0;
           updateViewersBadge(data.livestream.viewer_count);
+        } else {
+          // القناة موجودة لكن الاستجابة لا تحتوي على بث مباشر (ليست حالة خطأ)
+          viewersFailCount = 0;
         }
+      } else {
+        throw new Error(`HTTP ${response.status}`);
       }
     } catch (err) {
       if (err.name !== 'AbortError') {
+        viewersFailCount++;
         console.warn("[Kick Ext] فشل جلب بيانات المشاهدين:", err);
+        if (viewersFailCount >= VIEWERS_FAIL_THRESHOLD) {
+          updateViewersBadge(null); // اعرض "—" بدل رقم قديم قد يكون مضللاً
+        }
       }
     }
   }
@@ -346,6 +401,7 @@
         currentChannelName = newChannel;
         sessionMsgCount = 0;
         uniqueChatters.clear();
+        viewersFailCount = 0;
       }
 
       updateChatBadge(sessionMsgCount, uniqueChatters.size);
